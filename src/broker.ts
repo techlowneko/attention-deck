@@ -100,7 +100,7 @@ export async function startBroker(options: BrokerOptions = {}): Promise<BrokerHa
         if (!current) throw new NotFoundError("item not found");
         if (current.version !== body.version) throw new ConflictError("item changed; refresh before acting");
         if (action === "dismiss") {
-          json(response, 200, { item: store.resolve(id, body.version as number) });
+          json(response, 200, { item: store.dismiss(id, body.version as number) });
           return;
         }
         if (action === "snooze") {
@@ -108,7 +108,7 @@ export async function startBroker(options: BrokerOptions = {}): Promise<BrokerHa
             throw new ConflictError("action is no longer available");
           }
           const durationMs = Number.isSafeInteger(body.duration_ms) ? Number(body.duration_ms) : 300_000;
-          if (durationMs < 60_000 || durationMs > 86_400_000) throw new HttpError(400, "duration_ms must be 60000-86400000");
+          if (durationMs < 60_000 || durationMs > 604_800_000) throw new HttpError(400, "duration_ms must be 60000-604800000");
           json(response, 200, { item: store.snooze(id, body.version as number, durationMs) });
           return;
         }

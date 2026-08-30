@@ -1,6 +1,6 @@
 # Attention Deck — Product Requirements Document
 
-Status: working vertical slice with Codex adapter foundation, 2026-08-30
+Status: public alpha; working NEEDS ME vertical slice with Codex adapter foundation; bounded lifecycle/persistence increment implemented and under physical qualification, 2026-08-30
 
 ## Decision
 
@@ -37,14 +37,38 @@ The primary metric is avoided context switches per working day. Secondary metric
 - Rank blocked work, select any queued item, and show a bounded explanation.
 - Display staleness honestly.
 - Dismiss or snooze a generic event from hardware.
+- Keep source truth, local operator choices, device presentation, and provider-decision progress independent.
+- Restore local inbox state after restart without restoring expired provider authority.
 - OPEN only a trusted adapter locator; never execute emitter-supplied shell text.
 - Survive Stream Deck reconnect and system wake without replaying an action.
+
+## Bounded lifecycle model
+
+The lifecycle model keeps the existing normalized task classification alongside four orthogonal lifecycle concerns:
+
+| Concern | Authority | Purpose |
+| --- | --- | --- |
+| Normalized task state | Generic emitter or trusted adapter | `WORKING`, `INPUT`, `APPROVAL`, `REVIEW`, `DONE`, or `FAILED` |
+| Source state | Generic emitter or trusted adapter | Whether the source still considers the item `active` or has authoritatively `cleared` it |
+| Operator state | Local Attention Deck user | Whether the current user has not seen, seen, or claimed the item: `unseen`, `seen`, or `claimed` |
+| Presentation state | Broker/local inbox | Local card treatment: `visible`, `snoozed`, `dismissed`, or `recent` |
+| Decision state | Trusted adapter/action dispatcher | Request-scoped progress: `none`, `available`, `sending`, `accepted`, `rejected`, or `unknown` |
+
+These states do not overwrite one another. Selecting or opening an item changes none of them. Snooze and dismiss never claim that Codex completed or accepted anything. Disconnect or restart revokes decision authority even when the local card remains available for inspection.
+
+Each stable item also tracks:
+
+- a **generation**, advanced when a previously dismissed or provider-cleared episode recurs for the same source/session identity;
+- an **occurrence count**, counting accepted updates for that stable item without turning updates into many queue cards;
+- the current optimistic-lock version/sequence used to reject stale device actions.
+
+A higher version or new generation wakes an item before its snooze expires. An authoritative clear sets source state to `cleared` and presentation state to `recent`. A local dismiss changes presentation state without setting source state to `cleared`; a later generation may re-enter NEEDS ME.
 
 ## Device workflow
 
 ### All clear
 
-The strip reads `NOTHING NEEDS YOU` with a small last-sync age. Keys remain nearly black. WORKING and DONE do not occupy attention cards.
+The strip reads `NOTHING NEEDS YOU` with a small last-sync age. Keys remain nearly black. WORKING and DONE do not occupy NEEDS ME cards.
 
 ### Attention
 
@@ -55,7 +79,7 @@ Top row keys 1–4 show the first four items. Pressing selects; it never mutates
 | 5 | OPEN when a trusted locator exists |
 | 6 | APPROVE when the adapter holds an exact live request |
 | 7 | DENY for an exact live request; DISMISS for a generic item |
-| 8 | SNOOZE (five-minute broker snooze) |
+| 8 | SNOOZE using the selected 5-minute, 15-minute, 1-hour, or tomorrow-at-09:00 preset |
 
 Unsupported actions are blank. State uses a word, glyph, and border; color is supplemental.
 
@@ -66,7 +90,15 @@ The four 200×100 encoder regions are coordinated but independent:
 | 1 | Item and queue position | select item | OPEN |
 | 2 | Explanation page | page summary | return to page 1 |
 | 3 | Available action | select action | execute; APPROVE/DENY require a 750 ms hold |
-| 4 | View/health | reserved for NEEDS ME / ACTIVE / RECENT | return to NEEDS ME |
+| 4 | View/health | NEEDS ME / ACTIVE / RECENT | return to NEEDS ME |
+
+### Views
+
+- **NEEDS ME** contains unsnoozed, undismissed attention generations that currently require a person.
+- **ACTIVE** exposes the broker's current source-active collection, including locally snoozed or dismissed generations for reconciliation. It is a status surface with OPEN only, not a decision queue.
+- **RECENT** contains a bounded history of authoritative clears and local outcomes so a card does not disappear without explanation.
+
+The top four keys and Dial 1 use the selected view. Switching views never mutates an item. A new arrival does not retarget a held physical action.
 
 ## Priority
 
@@ -85,14 +117,17 @@ Default ordering is `APPROVAL > INPUT > FAILED > REVIEW`; within a state, explic
 
 ### P1
 
-- Atomic persistence of unresolved items and first-seen age.
+- Orthogonal source/operator/presentation/decision state.
+- Atomic restart-safe persistence of current local items, generation/count metadata, snooze/dismiss state, and bounded RECENT history.
+- Selectable bounded snooze durations and wake-on-new-version behavior.
+- NEEDS ME / ACTIVE / RECENT snapshots and device navigation.
 - Server-sent updates rather than polling.
 - Trusted locator registry and safe Windows OPEN launcher.
 - Codex app-server adapter: stable stdio initialization, thread inventory, approval lifecycle events, best-effort task deep-link, and fail-closed disconnect behavior.
 
 ### P2
 
-- Desktop/CLI completion notify bridge and bounded persistence.
+- Desktop/CLI completion notify bridge.
 - Claude Code hooks adapter.
 - OpenClaw adapter and an explicit remote-broker threat model.
 
@@ -114,9 +149,11 @@ Default ordering is `APPROVAL > INPUT > FAILED > REVIEW`; within a state, explic
 5. Long summaries page cleanly in 200×100 regions.
 6. Unsupported provider actions never appear.
 7. A stale event is visibly stale and cannot mutate a provider.
-8. Dismiss and snooze enforce the exact current version.
-9. Restart/wake produces a full refresh and no duplicate action.
-10. A malicious local web page cannot mutate the broker.
+8. Dismiss and snooze enforce the exact current version; dismiss does not claim authoritative completion.
+9. A newer version wakes a snoozed or locally dismissed generation.
+10. Restart restores bounded local state and history but no provider action grant; wake produces a full refresh and no duplicate action.
+11. NEEDS ME contains only visible attention, ACTIVE contains current source-active items, and RECENT stays within its history bound.
+12. A malicious local web page cannot mutate the broker.
 
 ## Out of scope
 
@@ -125,8 +162,8 @@ Remote exposure, dashboards, metrics graphs, full transcripts, arbitrary quick r
 ## Release phases
 
 1. Generic vertical slice (current): protocol/store/broker/CLI, device rendering, dismiss/snooze.
-2. Persistence, installer/profile, safe locator launcher, daily dogfooding.
+2. Bounded lifecycle/persistence increment, three device views, installer/profile, safe locator launcher, daily dogfooding.
 3. Codex app-server adapter foundation: thread inventory, exact owned-request correlation, OPEN, and gated request-scoped actions (current).
-4. Codex desktop notify bridge, persistence, and ACTIVE/RECENT views; live qualification of a disposable approval turn.
+4. Codex desktop notify bridge and live qualification of a disposable approval turn.
 5. Claude Code, then OpenClaw.
 6. Packaging, screenshots/demo, security review, and v0.1 OSS release.

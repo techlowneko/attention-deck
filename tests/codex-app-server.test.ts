@@ -64,6 +64,42 @@ test("Codex adapter exposes only exact live requests and clears them on resoluti
   await assert.rejects(() => adapter.execute(sending, "approve", "attempt-000000000002"), /no longer pending/);
   fake.emit("notification", { method: "serverRequest/resolved", params: { threadId: "thread-a", requestId: 42 } });
   assert.equal(store.snapshot().items.length, 0);
+  assert.equal(store.snapshot().recent[0]?.decision_state, "accepted");
+  assert.equal(store.snapshot().recent[0]?.source_state, "cleared");
+  adapter.close();
+});
+
+test("Codex adapter retains failed clear ownership and reports degraded persistence", async () => {
+  class FailingClearStore extends AttentionStore {
+    override clear(): never { throw new Error("disk unavailable"); }
+  }
+  const fake = new FakeCodexClient();
+  const store = new FailingClearStore({ persistencePath: null });
+  const errors: unknown[] = [];
+  const adapter = new CodexAttentionAdapter(store, {
+    client: fake as unknown as CodexAppServerClient,
+    pollMs: 60_000,
+    onError: (error) => errors.push(error),
+  });
+  await adapter.start();
+  fake.emit("serverRequest", {
+    method: "item/commandExecution/requestApproval",
+    id: 99,
+    params: {
+      threadId: "thread-persistence",
+      turnId: "turn-persistence",
+      itemId: "item-persistence",
+      availableDecisions: ["accept", "decline"],
+    },
+  });
+  const item = store.snapshot().items[0]!;
+  await adapter.execute(item, "approve", "attempt-persistence-0001");
+  const resolved = { method: "serverRequest/resolved", params: { threadId: "thread-persistence", requestId: 99 } };
+  fake.emit("notification", resolved);
+  fake.emit("notification", resolved);
+  assert.equal(errors.length, 2);
+  assert.equal(store.get(item.id)?.source_state, "active");
+  assert.equal(store.get(item.id)?.decision_state, "sending");
   adapter.close();
 });
 
