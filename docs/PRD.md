@@ -1,6 +1,6 @@
 # Attention Deck — Product Requirements Document
 
-Status: public alpha; working NEEDS ME vertical slice with Codex adapter foundation; bounded lifecycle/persistence increment implemented and under physical qualification, 2026-08-30
+Status: public alpha; NEEDS ME, lifecycle persistence, recurrence, dismiss, and three-view navigation physically qualified on Stream Deck+; sleep/wake and live provider qualification pending, 2026-08-30
 
 ## Decision
 

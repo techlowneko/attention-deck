@@ -2,7 +2,7 @@
 
 Attention Deck is a Stream Deck+ inbox for developers running AI coding agents. It shows which task needs you, why it is waiting, and which actions the integration can safely offer.
 
-> **Early alpha:** the generic local event path and physical Stream Deck+ NEEDS ME workflow are working. Bounded lifecycle state, restart-safe local persistence, selectable snooze, and ACTIVE/RECENT views are implemented and covered by automated tests; this increment still needs physical qualification. The Codex adapter can initialize, list tasks, and safely model exact request-scoped approvals, but ordinary Codex desktop tasks do not yet publish attention events to the Deck.
+> **Early alpha:** the generic local event path and physical Stream Deck+ NEEDS ME workflow are working. Bounded lifecycle state, restart-safe local persistence, selectable snooze, local dismiss, recurrence wake, and NEEDS ME / ACTIVE / RECENT navigation are automated-test and device qualified on Windows. Sleep/wake and live Codex-provider qualification remain. Ordinary Codex desktop tasks do not yet publish attention events to the Deck.
 
 **Stop checking agent windows. Let blocked work come to you.**
 
@@ -40,7 +40,7 @@ Attention Deck is designed to provide four answers from desk distance:
 | Best-effort Codex task deep-link | Implemented; physical qualification still pending |
 | Request-scoped Codex APPROVE/DENY | Implemented and unit tested for adapter-owned requests with explicitly advertised decisions; not yet end-to-end release-qualified |
 | Passive updates from ordinary Codex desktop work | Planned opt-in notify bridge |
-| Orthogonal lifecycle state, generation/count tracking, restart-safe local state, bounded RECENT history, selectable snooze, and ACTIVE/RECENT views | Implemented and automated-test qualified; physical device qualification pending |
+| Orthogonal lifecycle state, generation/count tracking, restart-safe local state, bounded RECENT history, selectable snooze, and ACTIVE/RECENT views | Automated-test and physical device qualified on Windows; sleep/wake qualification pending |
 | Installer and signed releases | Planned |
 | Claude Code and OpenClaw adapters | Planned |
 
@@ -133,7 +133,7 @@ See [DATA_HANDLING.md](DATA_HANDLING.md) for the local data and privacy model.
 
 ## Roadmap
 
-1. Physically qualify the bounded lifecycle/persistence increment across restart, sleep/wake, recurrence, selectable snooze, and NEEDS ME / ACTIVE / RECENT.
+1. Finish sleep/wake qualification for the physically tested lifecycle/persistence, recurrence, selectable-snooze, and three-view workflow.
 2. Add the opt-in Codex desktop completion/notify bridge.
 3. Finish exact OPEN qualification.
 4. Run a disposable-repository Codex approval qualification pass.
