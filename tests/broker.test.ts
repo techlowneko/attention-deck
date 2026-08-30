@@ -57,3 +57,43 @@ test("public broker never exposes provider approval actions", async (context) =>
   });
   assert.equal(denied.status, 404);
 });
+
+test("broker dismissal is local-only and the item remains visible in lifecycle views", async (context) => {
+  const broker = await startBroker({ port: 0, token: "d".repeat(32) });
+  context.after(() => broker.close());
+  const item = broker.store.upsert({ source: "test", project: "Relay", state: "INPUT", title: "Choose", summary: "A or B" });
+  const response = await fetch(`http://127.0.0.1:${broker.port}/v1/items/${encodeURIComponent(item.id)}/actions/dismiss`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${broker.token}`, "content-type": "application/json" },
+    body: JSON.stringify({ version: item.version }),
+  });
+  assert.equal(response.status, 200);
+  const snapshot = broker.store.snapshot();
+  assert.equal(snapshot.items.length, 0);
+  assert.equal(snapshot.active.length, 1);
+  assert.equal(snapshot.active[0]?.source_state, "active");
+  assert.equal(snapshot.active[0]?.presentation_state, "dismissed");
+  assert.equal(snapshot.recent.length, 1);
+});
+
+test("broker accepts bounded snoozes through tomorrow but rejects longer delays", async (context) => {
+  const broker = await startBroker({ port: 0, token: "s".repeat(32) });
+  context.after(() => broker.close());
+  const headers = { authorization: `Bearer ${broker.token}`, "content-type": "application/json" };
+  const first = broker.store.upsert({ source: "test", project: "Relay", session: "one", state: "INPUT", title: "Choose", summary: "A or B" });
+  const accepted = await fetch(`http://127.0.0.1:${broker.port}/v1/items/${encodeURIComponent(first.id)}/actions/snooze`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ version: first.version, duration_ms: 604_800_000 }),
+  });
+  assert.equal(accepted.status, 200);
+
+  const second = broker.store.upsert({ source: "test", project: "Relay", session: "two", state: "INPUT", title: "Choose again", summary: "A or B" });
+  const rejected = await fetch(`http://127.0.0.1:${broker.port}/v1/items/${encodeURIComponent(second.id)}/actions/snooze`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ version: second.version, duration_ms: 604_800_001 }),
+  });
+  assert.equal(rejected.status, 400);
+  assert.equal(broker.store.get(second.id)?.presentation_state, "visible");
+});

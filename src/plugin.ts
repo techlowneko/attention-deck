@@ -17,11 +17,37 @@ import { randomUUID } from "node:crypto";
 import { startBroker, type BrokerHandle } from "./broker.js";
 import { BrokerClient } from "./client.js";
 import { CodexAttentionAdapter } from "./codex-adapter.js";
-import { actionKey, idleKey, keyCard } from "./render.js";
+import {
+  actionKey,
+  idleKey,
+  keyCard,
+  occurrenceCount,
+  recentOutcomeLabel,
+  type SurfaceView,
+} from "./render.js";
 import type { AttentionAction, AttentionItem } from "./protocol.js";
 import { AttentionStore, type Snapshot } from "./store.js";
 
 type DeckMutation = Exclude<AttentionAction, "open">;
+
+const SURFACE_VIEWS: readonly SurfaceView[] = ["NEEDS_ME", "ACTIVE", "RECENT"];
+const SNOOZE_PRESETS = [
+  { label: "5 MIN", keyLabel: "5M", durationMs: () => 5 * 60_000 },
+  { label: "15 MIN", keyLabel: "15M", durationMs: () => 15 * 60_000 },
+  { label: "1 HOUR", keyLabel: "1H", durationMs: () => 60 * 60_000 },
+  {
+    label: "TOMORROW",
+    keyLabel: "TOMORROW",
+    durationMs: (now = new Date()) => {
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(9, 0, 0, 0);
+      return Math.max(60_000, tomorrow.getTime() - now.getTime());
+    },
+  },
+] as const;
+
+type ExpandedSnapshot = Snapshot & Partial<{ active: AttentionItem[]; recent: AttentionItem[] }>;
 
 function recordStartupFailure(reason: unknown): void {
   try {
@@ -56,10 +82,19 @@ process.on("unhandledRejection", (error) => {
 });
 
 class SurfaceCoordinator {
-  snapshot: Snapshot = { protocol: "attention/1", cursor: 0, generated_at: new Date().toISOString(), items: [] };
+  snapshot: ExpandedSnapshot = {
+    protocol: "attention/1",
+    cursor: 0,
+    generated_at: new Date().toISOString(),
+    items: [],
+    active: [],
+    recent: [],
+  };
   selected = 0;
   detailPage = 0;
   selectedAction: DeckMutation = "snooze";
+  snoozePreset = 0;
+  view: SurfaceView = "NEEDS_ME";
   online = false;
   providerState: "connecting" | "connected" | "offline" = "connecting";
 
@@ -69,14 +104,30 @@ class SurfaceCoordinator {
   ) {}
 
   get item(): AttentionItem | undefined {
-    return this.snapshot.items[this.selected];
+    return this.viewItems[this.selected];
+  }
+
+  get viewItems(): AttentionItem[] {
+    if (this.view === "ACTIVE") return this.snapshot.active ?? [];
+    if (this.view === "RECENT") return this.snapshot.recent ?? [];
+    return this.snapshot.items;
+  }
+
+  get snooze(): (typeof SNOOZE_PRESETS)[number] {
+    return SNOOZE_PRESETS[this.snoozePreset]!;
+  }
+
+  count(view: SurfaceView): number {
+    if (view === "ACTIVE") return this.snapshot.active?.length ?? 0;
+    if (view === "RECENT") return this.snapshot.recent?.length ?? 0;
+    return this.snapshot.items.length;
   }
 
   async refresh(): Promise<void> {
     try {
       this.snapshot = await this.client.snapshot();
       this.online = true;
-      if (this.selected >= this.snapshot.items.length) this.selected = Math.max(0, this.snapshot.items.length - 1);
+      if (this.selected >= this.viewItems.length) this.selected = Math.max(0, this.viewItems.length - 1);
       this.normalizeAction();
     } catch {
       this.online = false;
@@ -85,7 +136,7 @@ class SurfaceCoordinator {
   }
 
   selectDelta(delta: number): void {
-    const length = this.snapshot.items.length;
+    const length = this.viewItems.length;
     if (length === 0) return;
     this.selected = (this.selected + Math.sign(delta) + length) % length;
     this.detailPage = 0;
@@ -94,6 +145,7 @@ class SurfaceCoordinator {
 
   actions(item = this.item): AttentionAction[] {
     if (!item) return [];
+    if (this.view !== "NEEDS_ME") return item.locator ? ["open"] : [];
     const declared = item.available_actions ? [...item.available_actions] : ["dismiss", "snooze"] as AttentionAction[];
     if (item.locator && !declared.includes("open")) declared.unshift("open");
     return declared;
@@ -111,6 +163,26 @@ class SurfaceCoordinator {
     this.selectedAction = actions[(current + Math.sign(delta) + actions.length) % actions.length]!;
   }
 
+  rotateSnooze(delta: number): void {
+    const length = SNOOZE_PRESETS.length;
+    this.snoozePreset = (this.snoozePreset + Math.sign(delta) + length) % length;
+  }
+
+  rotateView(delta: number): void {
+    const current = SURFACE_VIEWS.indexOf(this.view);
+    this.view = SURFACE_VIEWS[(current + Math.sign(delta) + SURFACE_VIEWS.length) % SURFACE_VIEWS.length]!;
+    this.selected = 0;
+    this.detailPage = 0;
+    this.normalizeAction();
+  }
+
+  returnToNeedsMe(): void {
+    this.view = "NEEDS_ME";
+    this.selected = Math.min(this.selected, Math.max(0, this.snapshot.items.length - 1));
+    this.detailPage = 0;
+    this.normalizeAction();
+  }
+
   async executeAction(actionName: AttentionAction, captured?: { id: string; version: number }): Promise<void> {
     const item = captured ? this.snapshot.items.find((candidate) => candidate.id === captured.id) : this.item;
     if (!item) return;
@@ -120,17 +192,28 @@ class SurfaceCoordinator {
       await streamDeck.system.openUrl(item.locator.target);
       return;
     }
+    if (this.view !== "NEEDS_ME" || !this.snapshot.items.some((candidate) => candidate.id === item.id)) {
+      throw new Error("mutating actions are only available in NEEDS ME");
+    }
+    if (!this.actions(item).includes(actionName)) throw new Error("action is not available for this item");
     if (actionName === "approve" || actionName === "deny") {
       await this.providerAction(item, actionName, randomUUID());
     } else {
-      await this.client.action(item.id, actionName, item.version, actionName === "snooze" ? 300_000 : undefined);
+      await this.client.action(item.id, actionName, item.version, actionName === "snooze" ? this.snooze.durationMs() : undefined);
     }
     await this.refresh();
   }
 }
 
 const store = new AttentionStore();
-const codexAdapter = new CodexAttentionAdapter(store);
+let surface: SurfaceCoordinator;
+const codexAdapter = new CodexAttentionAdapter(store, {
+  onError: (error) => {
+    recordStartupFailure(error);
+    surface.providerState = "offline";
+    void surface.refresh();
+  },
+});
 let broker: BrokerHandle | undefined;
 try {
   broker = await startBroker({ store });
@@ -138,13 +221,15 @@ try {
   if ((error as NodeJS.ErrnoException).code !== "EADDRINUSE") throw error;
 }
 
-const surface = new SurfaceCoordinator(
+surface = new SurfaceCoordinator(
   new BrokerClient(),
   (item, name, attemptId) => codexAdapter.execute(item, name, attemptId),
 );
 type HeldAction = { startedAt: number; itemId: string; version: number; action: "approve" | "deny" };
+type HeldSnooze = { itemId: string; version: number; rotated: boolean };
 const heldKeys = new Map<string, HeldAction>();
 const heldDials = new Map<string, HeldAction>();
+const heldSnoozeDials = new Map<string, HeldSnooze>();
 const HOLD_MS = 750;
 
 @action({ UUID: "com.preflightstack.attention-deck.key" })
@@ -157,14 +242,15 @@ class AttentionKeyAction extends SingletonAction {
     const coordinates = event.action.coordinates;
     if (!coordinates) return;
     if (coordinates.row === 0 && coordinates.column < 4) {
-      if (surface.snapshot.items[coordinates.column]) {
+      if (surface.viewItems[coordinates.column]) {
         surface.selected = coordinates.column;
         surface.normalizeAction();
       }
-    } else if (coordinates.row === 1 && coordinates.column === 1 && surface.item?.available_actions?.includes("approve")) {
+    } else if (coordinates.row === 1 && coordinates.column === 1 && surface.view === "NEEDS_ME" && surface.item?.available_actions?.includes("approve")) {
       this.capture(event.action.id, "approve");
       return;
     } else if (coordinates.row === 1 && coordinates.column === 2) {
+      if (surface.view !== "NEEDS_ME") return;
       if (surface.item?.available_actions?.includes("deny")) {
         this.capture(event.action.id, "deny");
         return;
@@ -172,6 +258,7 @@ class AttentionKeyAction extends SingletonAction {
       if (!surface.item?.available_actions && surface.item) await this.execute(event.action, "dismiss");
       return;
     } else if (coordinates.row === 1 && coordinates.column === 3) {
+      if (surface.view !== "NEEDS_ME") return;
       await this.execute(event.action, "snooze");
       return;
     } else if (coordinates.row === 1 && coordinates.column === 0) {
@@ -190,7 +277,7 @@ class AttentionKeyAction extends SingletonAction {
 
   capture(actionId: string, name: "approve" | "deny"): void {
     const item = surface.item;
-    if (!item || item.action_status !== "ready") return;
+    if (surface.view !== "NEEDS_ME" || !item || item.action_status !== "ready") return;
     heldKeys.set(actionId, { startedAt: Date.now(), itemId: item.id, version: item.version, action: name });
   }
 
@@ -212,19 +299,27 @@ class AttentionKeyAction extends SingletonAction {
       if (!coordinates) continue;
       let image: string;
       if (coordinates.row === 0) {
-        const item = surface.snapshot.items[coordinates.column];
+        const item = surface.viewItems[coordinates.column];
         image = item
-          ? keyCard(item, coordinates.column === surface.selected, now)
-          : idleKey(surface.snapshot.items.length === 0 && coordinates.column === 0, surface.providerState);
+          ? keyCard(item, coordinates.column === surface.selected, now, surface.view)
+          : idleKey(
+              surface.viewItems.length === 0 && coordinates.column === 0,
+              surface.providerState,
+              surface.view === "ACTIVE" ? "NO ACTIVE" : surface.view === "RECENT" ? "NO RECENT" : "ALL CLEAR",
+            );
       } else {
         const item = surface.item;
+        const canMutate = surface.view === "NEEDS_ME";
         if (coordinates.column === 0) image = actionKey("OPEN", Boolean(item?.locator));
-        else if (coordinates.column === 1) image = actionKey("APPROVE", Boolean(item?.available_actions?.includes("approve")), "#75b798");
+        else if (coordinates.column === 1) image = actionKey("APPROVE", canMutate && Boolean(item?.available_actions?.includes("approve")), "#75b798");
         else if (coordinates.column === 2) {
-          const providerDeny = Boolean(item?.available_actions?.includes("deny"));
-          const genericDismiss = Boolean(item && !item.available_actions);
+          const providerDeny = canMutate && Boolean(item?.available_actions?.includes("deny"));
+          const genericDismiss = canMutate && Boolean(item && !item.available_actions);
           image = actionKey(providerDeny ? "DENY" : "DISMISS", providerDeny || genericDismiss, providerDeny ? "#ef6f6c" : "#7e8b96");
-        } else image = actionKey("SNOOZE", Boolean(item && (!item.available_actions || item.available_actions.includes("snooze"))), "#58c4dd");
+        } else {
+          const canSnooze = canMutate && Boolean(item && (!item.available_actions || item.available_actions.includes("snooze")));
+          image = actionKey("SNOOZE", canSnooze, "#58c4dd", surface.snooze.keyLabel);
+        }
       }
       await visible.setImage(image);
     }
@@ -241,7 +336,13 @@ class AttentionEncoderAction extends SingletonAction {
     const column = event.action.coordinates.column;
     if (column === 0) surface.selectDelta(event.payload.ticks);
     else if (column === 1) surface.detailPage = Math.max(0, surface.detailPage + Math.sign(event.payload.ticks));
-    else if (column === 2) surface.rotateAction(event.payload.ticks);
+    else if (column === 2) {
+      if (event.payload.pressed && surface.selectedAction === "snooze") {
+        surface.rotateSnooze(event.payload.ticks);
+        const held = heldSnoozeDials.get(event.action.id);
+        if (held) held.rotated = true;
+      } else surface.rotateAction(event.payload.ticks);
+    } else if (column === 3) surface.rotateView(event.payload.ticks);
     await Promise.all([keyAction.render(), this.render()]);
   }
 
@@ -255,27 +356,37 @@ class AttentionEncoderAction extends SingletonAction {
         if (item?.action_status === "ready") {
           heldDials.set(event.action.id, { startedAt: Date.now(), itemId: item.id, version: item.version, action: surface.selectedAction });
         }
-      } else await this.execute(event.action);
-    }
+      } else if (surface.selectedAction === "snooze") {
+        const item = surface.item;
+        if (surface.view === "NEEDS_ME" && item && surface.actions(item).includes("snooze")) {
+          heldSnoozeDials.set(event.action.id, { itemId: item.id, version: item.version, rotated: false });
+        }
+      } else await this.execute(event.action, surface.selectedAction);
+    } else if (column === 3) surface.returnToNeedsMe();
     await Promise.all([keyAction.render(), this.render()]);
   }
 
   override async onDialUp(event: DialUpEvent): Promise<void> {
+    const snooze = heldSnoozeDials.get(event.action.id);
+    heldSnoozeDials.delete(event.action.id);
+    if (snooze) {
+      if (!snooze.rotated) await this.execute(event.action, "snooze", { id: snooze.itemId, version: snooze.version });
+      return;
+    }
     const held = heldDials.get(event.action.id);
     heldDials.delete(event.action.id);
     if (!held || Date.now() - held.startedAt < HOLD_MS) return;
-    await this.execute(event.action, held);
+    await this.execute(event.action, held.action, { id: held.itemId, version: held.version });
   }
 
   override async onTouchTap(event: TouchTapEvent): Promise<void> {
     const column = event.action.coordinates.column;
-    if (column === 2 && event.payload.hold) await this.execute(event.action);
-    else if (column === 0 && surface.item?.locator) await streamDeck.system.openUrl(surface.item.locator.target);
+    if (column === 0 && surface.item?.locator) await streamDeck.system.openUrl(surface.item.locator.target);
   }
 
-  async execute(source: DialAction, held?: HeldAction): Promise<void> {
+  async execute(source: DialAction, actionName: AttentionAction, captured?: { id: string; version: number }): Promise<void> {
     try {
-      await surface.executeAction(held?.action ?? surface.selectedAction, held ? { id: held.itemId, version: held.version } : undefined);
+      await surface.executeAction(actionName, captured);
     } catch {
       await source.showAlert();
       await surface.refresh();
@@ -291,23 +402,33 @@ class AttentionEncoderAction extends SingletonAction {
       let primary = surface.online ? (surface.providerState === "connected" ? "NOTHING NEEDS YOU" : "CODEX OFFLINE") : "BROKER OFFLINE";
       let secondary = surface.online ? (surface.providerState === "connecting" ? "CONNECTING" : surface.providerState === "connected" ? "ALL CLEAR" : "ACTIONS LOCKED") : "RECONNECTING";
       if (item && column === 0) {
-        eyebrow = `ITEM ${surface.selected + 1}/${surface.snapshot.items.length}`;
+        eyebrow = `${surface.view.replace("_", " ")} · ${surface.selected + 1}/${surface.viewItems.length}`;
         primary = item.project;
-        secondary = `${item.source.toUpperCase()} · ${item.freshness === "stale" ? "STALE" : item.state}`;
+        const count = occurrenceCount(item);
+        const state = surface.view === "RECENT" ? (recentOutcomeLabel(item) ?? item.state) : item.state;
+        secondary = `${item.source.toUpperCase()} · ${item.freshness === "stale" ? "STALE" : state}${count && count > 1 ? ` · ×${count}` : ""}`;
       } else if (item && column === 1) {
         eyebrow = "WHY";
         const start = surface.detailPage * 34;
         primary = item.summary.slice(start, start + 34) || item.summary.slice(0, 34);
-        secondary = item.title;
+        const outcome = surface.view === "RECENT" ? recentOutcomeLabel(item) : undefined;
+        secondary = outcome ? `${item.title} · ${outcome}` : item.title;
       } else if (item && column === 2) {
         const providerAction = surface.selectedAction === "approve" || surface.selectedAction === "deny";
-        eyebrow = providerAction ? "ACTION · HOLD 0.75S" : "ACTION";
-        primary = `${providerAction ? "HOLD " : ""}${surface.selectedAction.toUpperCase()}`;
-        secondary = item.action_status === "sending" ? "SENDING" : surface.selectedAction === "snooze" ? "SNOOZE 5 MIN" : providerAction ? "EXACT CODEX REQUEST" : "RESOLVE LOCALLY";
-      } else if (item && column === 3) {
-        eyebrow = "VIEW";
-        primary = `NEEDS ME ${surface.snapshot.items.length}`;
-        secondary = item.freshness === "stale" ? "SOURCE STALE" : "LIVE";
+        const canMutate = surface.view === "NEEDS_ME";
+        eyebrow = canMutate ? (providerAction ? "ACTION · HOLD 0.75S" : "ACTION") : "ACTIONS LOCKED";
+        primary = canMutate ? `${providerAction ? "HOLD " : ""}${surface.selectedAction.toUpperCase()}` : "OPEN ONLY";
+        secondary = item.action_status === "sending"
+          ? "SENDING"
+          : surface.selectedAction === "snooze"
+            ? `${surface.snooze.label} · HOLD+TURN`
+            : providerAction
+              ? "EXACT CODEX REQUEST"
+              : "RESOLVE LOCALLY";
+      } else if (column === 3) {
+        eyebrow = "VIEW · TURN · PRESS HOME";
+        primary = surface.view.replace("_", " ");
+        secondary = `N ${surface.count("NEEDS_ME")} · A ${surface.count("ACTIVE")} · R ${surface.count("RECENT")}`;
       }
       await visible.setFeedback({ eyebrow, primary, secondary });
     }

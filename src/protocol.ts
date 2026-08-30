@@ -14,6 +14,16 @@ export type Freshness = "fresh" | "stale";
 export type AttentionAction = "open" | "approve" | "deny" | "dismiss" | "snooze";
 export type ActionStatus = "ready" | "sending" | "unknown";
 
+export const SOURCE_STATES = ["active", "cleared"] as const;
+export const OPERATOR_STATES = ["unseen", "seen", "claimed"] as const;
+export const PRESENTATION_STATES = ["visible", "snoozed", "dismissed", "recent"] as const;
+export const DECISION_STATES = ["none", "available", "sending", "accepted", "rejected", "unknown"] as const;
+
+export type SourceState = (typeof SOURCE_STATES)[number];
+export type OperatorState = (typeof OPERATOR_STATES)[number];
+export type PresentationState = (typeof PRESENTATION_STATES)[number];
+export type DecisionState = (typeof DECISION_STATES)[number];
+
 export interface EmitItem {
   protocol?: "attention/1";
   event_id?: string;
@@ -30,6 +40,8 @@ export interface EmitItem {
   fresh_for_ms?: number;
   available_actions?: AttentionAction[];
   action_status?: ActionStatus;
+  source_state?: SourceState;
+  decision_state?: DecisionState;
   locator?: {
     type: "https" | "loopback" | "app";
     target: string;
@@ -55,6 +67,12 @@ export interface AttentionItem {
   last_seen_at: string;
   fresh_for_ms: number;
   freshness: Freshness;
+  generation: number;
+  occurrence_count: number;
+  source_state: SourceState;
+  operator_state: OperatorState;
+  presentation_state: PresentationState;
+  decision_state: DecisionState;
   available_actions?: AttentionAction[];
   action_status?: ActionStatus;
   locator?: EmitItem["locator"];
@@ -138,18 +156,41 @@ export function validateEmitItem(value: unknown, now = new Date()): EmitItem {
     }
     parsed.fresh_for_ms = input.fresh_for_ms as number;
   }
+  if (input.source_state !== undefined) {
+    if (!SOURCE_STATES.includes(input.source_state as SourceState)) {
+      throw new Error(`source_state must be one of ${SOURCE_STATES.join(", ")}`);
+    }
+    parsed.source_state = input.source_state as SourceState;
+  }
   if (input.locator !== undefined) {
     throw new Error("generic events cannot declare locators; use a trusted adapter");
   }
-  if (input.available_actions !== undefined || input.action_status !== undefined) {
+  if (input.available_actions !== undefined || input.action_status !== undefined || input.decision_state !== undefined) {
     throw new Error("generic events cannot declare actions; use a trusted adapter");
   }
   return parsed;
 }
 
+function deriveDecisionState(input: EmitItem): DecisionState {
+  if (input.decision_state !== undefined) return input.decision_state;
+  if (input.action_status === "sending") return "sending";
+  if (input.action_status === "unknown") return "unknown";
+  if (input.action_status === "ready" && input.available_actions?.some((action) => action === "approve" || action === "deny")) {
+    return "available";
+  }
+  return "none";
+}
+
 export function materializeItem(input: EmitItem, existing: AttentionItem | undefined, now = new Date()): AttentionItem {
   const eventId = input.event_id ?? randomUUID();
   const stableId = input.session ? `${input.source}:${input.session}` : eventId;
+  const sourceState = input.source_state ?? (input.state === "DONE" ? "cleared" : "active");
+  const derivedDecision = deriveDecisionState(input);
+  const decisionState: DecisionState = sourceState === "cleared" && (derivedDecision === "available" || derivedDecision === "sending")
+    ? "unknown"
+    : derivedDecision;
+  const reactivated = existing !== undefined && (existing.source_state === "cleared" || existing.presentation_state === "dismissed");
+  const firstSeenAt = existing && !reactivated ? existing.first_seen_at : now.toISOString();
   const item: AttentionItem = {
     protocol: "attention/1",
     event_id: eventId,
@@ -163,15 +204,22 @@ export function materializeItem(input: EmitItem, existing: AttentionItem | undef
     sequence: input.sequence ?? ((existing?.sequence ?? -1) + 1),
     priority: input.priority ?? 0,
     occurred_at: input.occurred_at ?? now.toISOString(),
-    first_seen_at: existing?.first_seen_at ?? now.toISOString(),
+    first_seen_at: firstSeenAt,
     last_seen_at: now.toISOString(),
     fresh_for_ms: input.fresh_for_ms ?? 300_000,
     freshness: "fresh",
+    generation: existing ? existing.generation + (reactivated ? 1 : 0) : 1,
+    occurrence_count: (existing?.occurrence_count ?? 0) + 1,
+    source_state: sourceState,
+    operator_state: "unseen",
+    presentation_state: sourceState === "cleared" ? "recent" : "visible",
+    decision_state: decisionState,
   };
   if (input.session !== undefined) item.session = input.session;
   if (input.locator !== undefined) item.locator = input.locator;
-  if (input.available_actions !== undefined) item.available_actions = [...input.available_actions];
-  if (input.action_status !== undefined) item.action_status = input.action_status;
+  if (sourceState === "active" && input.available_actions !== undefined) item.available_actions = [...input.available_actions];
+  if (sourceState === "active" && input.action_status !== undefined) item.action_status = input.action_status;
+  if (sourceState === "cleared") item.resolved_at = now.toISOString();
   return item;
 }
 
@@ -180,13 +228,22 @@ export function refreshFreshness(item: AttentionItem, now = new Date()): Attenti
   return { ...item, freshness: stale ? "stale" : "fresh" };
 }
 
+export function refreshPresentation(item: AttentionItem, now = new Date()): AttentionItem {
+  if (item.presentation_state !== "snoozed" || !item.snoozed_until || Date.parse(item.snoozed_until) > now.getTime()) {
+    return item;
+  }
+  const { snoozed_until: _expired, ...rest } = item;
+  return { ...rest, presentation_state: "visible" };
+}
+
 export function compareAttention(a: AttentionItem, b: AttentionItem): number {
   const weight = (item: AttentionItem) => STATE_WEIGHT[item.state] + item.priority;
   return weight(b) - weight(a) || Date.parse(a.first_seen_at) - Date.parse(b.first_seen_at) || a.id.localeCompare(b.id);
 }
 
 export function isNeedsMe(item: AttentionItem, now = new Date()): boolean {
-  if (item.resolved_at) return false;
-  if (item.snoozed_until && Date.parse(item.snoozed_until) > now.getTime()) return false;
+  if (item.source_state !== "active" || item.resolved_at) return false;
+  const presented = refreshPresentation(item, now);
+  if (presented.presentation_state !== "visible") return false;
   return ["APPROVAL", "INPUT", "FAILED", "REVIEW"].includes(item.state);
 }

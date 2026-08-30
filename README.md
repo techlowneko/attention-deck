@@ -2,7 +2,7 @@
 
 Attention Deck is a Stream Deck+ inbox for developers running AI coding agents. It shows which task needs you, why it is waiting, and which actions the integration can safely offer.
 
-> **Early alpha:** the generic local event path and physical Stream Deck+ workflow are working. The Codex adapter can initialize, list tasks, and safely model exact request-scoped approvals, but ordinary Codex desktop tasks do not yet publish attention events to the Deck.
+> **Early alpha:** the generic local event path and physical Stream Deck+ NEEDS ME workflow are working. Bounded lifecycle state, restart-safe local persistence, selectable snooze, local dismiss, recurrence wake, and NEEDS ME / ACTIVE / RECENT navigation are automated-test and device qualified on Windows. Sleep/wake and live Codex-provider qualification remain. Ordinary Codex desktop tasks do not yet publish attention events to the Deck.
 
 **Stop checking agent windows. Let blocked work come to you.**
 
@@ -34,13 +34,14 @@ Attention Deck is designed to provide four answers from desk distance:
 
 | Capability | Status |
 | --- | --- |
-| Stream Deck+ rendering, selection, details, dismiss, and snooze | Working development prototype; physically tested on Windows |
+| Stream Deck+ NEEDS ME rendering, selection, details, local dismiss, and five-minute snooze | Working development prototype; physically tested on Windows |
 | Authenticated local event API and CLI | Working development prototype |
 | Codex app-server initialization and stored-task inventory | Working local integration |
 | Best-effort Codex task deep-link | Implemented; physical qualification still pending |
 | Request-scoped Codex APPROVE/DENY | Implemented and unit tested for adapter-owned requests with explicitly advertised decisions; not yet end-to-end release-qualified |
 | Passive updates from ordinary Codex desktop work | Planned opt-in notify bridge |
-| Persistence, ACTIVE/RECENT views, installer, and signed releases | Planned |
+| Orthogonal lifecycle state, generation/count tracking, restart-safe local state, bounded RECENT history, selectable snooze, and ACTIVE/RECENT views | Automated-test and physical device qualified on Windows; sleep/wake qualification pending |
+| Installer and signed releases | Planned |
 | Claude Code and OpenClaw adapters | Planned |
 
 ## How the device works
@@ -49,8 +50,22 @@ Place **Attention Key** on all eight keys and **Attention Dial** on all four dia
 
 - Top keys 1–4 show the highest-priority items. Pressing a card selects it; selection never mutates work.
 - Bottom keys are OPEN, APPROVE, DENY-or-DISMISS, and SNOOZE.
-- Dial 1 selects items, Dial 2 pages the explanation, Dial 3 selects valid actions, and Dial 4 is reserved for queue views and health.
+- Dial 1 selects items, Dial 2 pages the explanation, Dial 3 selects valid actions and snooze duration, and Dial 4 rotates NEEDS ME / ACTIVE / RECENT; pressing Dial 4 returns home to NEEDS ME.
 - APPROVE and DENY require a 750 ms hold and remain disabled unless a trusted adapter owns the exact live request.
+
+### Lifecycle and views
+
+The lifecycle increment keeps four concerns separate:
+
+- normalized task **state** records working, input, approval, review, done, or failed;
+- **source state** records whether the source still considers that item active or has authoritatively cleared it;
+- **operator state** records whether this user has not seen, seen, or claimed the item;
+- **presentation state** records whether the local card is visible, snoozed, dismissed, or recent;
+- **decision state** tracks whether a request-scoped provider decision is absent, available, sending, accepted, rejected, or of unknown outcome.
+
+A stable item may have multiple generations and repeated occurrences. A newer version wakes a snoozed or locally dismissed item when it again needs attention. An authoritative provider clear is different from local dismiss: clear says the source no longer needs a person, while dismiss only removes the current generation from this user's inbox.
+
+The increment also adds a restart-safe local snapshot and bounded RECENT history. It does not persist provider approval grants across restart; a trusted adapter must reconnect and re-establish current capabilities before APPROVE or DENY can reappear.
 
 ## Development quick start
 
@@ -118,9 +133,9 @@ See [DATA_HANDLING.md](DATA_HANDLING.md) for the local data and privacy model.
 
 ## Roadmap
 
-1. Persist unresolved items and first-seen age atomically.
+1. Finish sleep/wake qualification for the physically tested lifecycle/persistence, recurrence, selectable-snooze, and three-view workflow.
 2. Add the opt-in Codex desktop completion/notify bridge.
-3. Finish ACTIVE and RECENT views and exact OPEN qualification.
+3. Finish exact OPEN qualification.
 4. Run a disposable-repository Codex approval qualification pass.
 5. Add installer/profile tooling, screenshots, and signed releases.
 6. Add Claude Code and OpenClaw adapters behind the same capability model.

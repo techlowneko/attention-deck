@@ -22,6 +22,7 @@ interface PendingApproval {
   codexItemId: string;
   promptHash: string;
   state: "pending" | "reply_sent" | "unknown";
+  submittedDecision?: "accepted" | "rejected";
   sequence: number;
   base: EmitItem;
 }
@@ -46,6 +47,7 @@ function projectLabel(cwd: string | undefined, thread?: CodexThreadSummary): str
 export interface CodexAdapterOptions {
   client?: CodexAppServerClient;
   pollMs?: number;
+  onError?: (error: unknown) => void;
 }
 
 export class CodexAttentionAdapter {
@@ -93,11 +95,12 @@ export class CodexAttentionAdapter {
       throw new ConflictError("Codex request is no longer pending");
     }
     const current = this.store.get(item.id);
-    if (!current || current.version !== item.version || current.freshness === "stale" || !current.available_actions?.includes(action)) {
+    if (!current || current.source_state !== "active" || current.version !== item.version || current.freshness === "stale" || !current.available_actions?.includes(action)) {
       throw new ConflictError("Codex request changed; refresh before acting");
     }
 
     pending.state = "reply_sent";
+    pending.submittedDecision = action === "approve" ? "accepted" : "rejected";
     pending.sequence += 1;
     const sending = this.store.upsertTrusted({
       ...pending.base,
@@ -216,12 +219,21 @@ export class CodexAttentionAdapter {
   }
 
   #finish(pending: PendingApproval): void {
-    this.#pendingByItem.delete(pending.itemId);
-    this.#pendingByRequest.delete(pending.requestKey);
     const item = this.store.get(pending.itemId);
     if (item && !item.resolved_at) {
-      try { this.store.resolve(item.id, item.version); } catch { /* A newer authoritative event won the race. */ }
+      try {
+        this.store.clear(item.id, item.version, new Date(), pending.submittedDecision);
+      } catch (error) {
+        if (!(error instanceof ConflictError)) {
+          pending.state = "unknown";
+          this.options.onError?.(error);
+          return;
+        }
+        /* A newer authoritative event won the race. */
+      }
     }
+    this.#pendingByItem.delete(pending.itemId);
+    this.#pendingByRequest.delete(pending.requestKey);
   }
 
   #onDisconnected(): void {
