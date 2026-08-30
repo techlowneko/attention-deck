@@ -38,5 +38,11 @@ test("key artwork uses an explicit base64 SVG data URI", () => {
   const card = decodeSvg(keyCard(item, true, new Date("2026-08-30T11:56:00.000Z")));
   assert.match(card, /Lifecycle T/);
   assert.match(card, /INPUT/);
-  assert.match(decodeSvg(actionKey("SNOOZE", true, "#58c4dd", "15M")), /SNOOZE/);
+  const enabled = decodeSvg(actionKey("SNOOZE", true, "#58c4dd", "15M"));
+  assert.match(enabled, /SNOOZE/);
+  assert.match(enabled, /15M · READY/);
+  assert.match(enabled, /stroke-width="6"/);
+  const disabled = decodeSvg(actionKey("APPROVE", false));
+  assert.doesNotMatch(disabled, /READY/);
+  assert.match(disabled, /stroke-width="2"/);
 });

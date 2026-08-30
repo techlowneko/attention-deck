@@ -93,12 +93,21 @@ export function keyCard(item: AttentionItem, selected: boolean, now = new Date()
   </svg>`);
 }
 
-export function actionKey(label: string, enabled: boolean, accent = "#d8e0e8", detail?: string): string {
+export function actionKey(
+  label: string,
+  enabled: boolean,
+  accent = "#d8e0e8",
+  detail?: string,
+  indicator: string | null | undefined = undefined,
+): string {
+  const status = indicator === undefined ? (enabled ? "READY" : "") : (indicator ?? "");
+  const secondary = [detail, status].filter(Boolean).join(" · ");
   return svgDataUri(`<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144">
-    <rect width="144" height="144" rx="13" fill="#090c10"/>
-    <rect x="4" y="4" width="136" height="136" rx="11" fill="none" stroke="${enabled ? accent : "#242a31"}" stroke-width="3"/>
-    <text x="72" y="${detail ? 68 : 78}" text-anchor="middle" fill="${enabled ? "#f5f7fa" : "#58616b"}" font-family="Arial,sans-serif" font-size="18" font-weight="800">${escapeXml(label)}</text>
-    ${detail ? `<text x="72" y="92" text-anchor="middle" fill="${enabled ? accent : "#58616b"}" font-family="Arial,sans-serif" font-size="13" font-weight="700">${escapeXml(detail)}</text>` : ""}
+    <rect width="144" height="144" rx="13" fill="${enabled ? "#152029" : "#090c10"}"/>
+    <rect x="${enabled ? 3 : 5}" y="${enabled ? 3 : 5}" width="${enabled ? 138 : 134}" height="${enabled ? 138 : 134}" rx="11" fill="none" stroke="${enabled ? accent : "#20262d"}" stroke-width="${enabled ? 6 : 2}"/>
+    ${status ? `<circle cx="124" cy="20" r="7" fill="${accent}"/>` : ""}
+    <text x="72" y="${secondary ? 68 : 78}" text-anchor="middle" fill="${enabled ? "#ffffff" : "#46505a"}" font-family="Arial,sans-serif" font-size="18" font-weight="800">${escapeXml(label)}</text>
+    ${secondary ? `<text x="72" y="94" text-anchor="middle" fill="${enabled ? accent : "#46505a"}" font-family="Arial,sans-serif" font-size="12" font-weight="800">${escapeXml(secondary)}</text>` : ""}
   </svg>`);
 }
 
@@ -108,5 +117,5 @@ export function idleKey(
   emptyLabel = "ALL CLEAR",
 ): string {
   const label = providerState === "connected" ? emptyLabel : providerState === "connecting" ? "CONNECTING" : "CODEX OFFLINE";
-  return actionKey(primary ? label : "", primary, providerState === "offline" ? "#7f8994" : "#52616d");
+  return actionKey(primary ? label : "", primary, providerState === "offline" ? "#7f8994" : "#52616d", undefined, null);
 }
