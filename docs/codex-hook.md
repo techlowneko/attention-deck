@@ -33,6 +33,10 @@ The example expects `node` on `PATH` and the linked or installed plugin at:
 
 The hook is asynchronous, has a three-second process limit, and gives its one loopback request a 750 ms timeout. Broker, token, JSON, and network failures are swallowed so they cannot block Codex completion. Set `ATTENTION_DECK_HOOK_DEBUG=1` only for local troubleshooting; diagnostics contain only a bounded error message, never hook input or the bearer token.
 
+## Qualification record
+
+On 2026-08-30, the Windows setup was qualified end to end with Codex CLI 0.149.0 and a linked Stream Deck+ plugin. After reviewing and trusting the exact user-configured hook, a disposable Codex turn produced one visible `REVIEW` card titled `Codex turn ready`. The physical card exposed only local Dismiss and Snooze controls; APPROVE remained unavailable, as required for the display-only generic event path.
+
 ## Remove the integration
 
 Remove only the Attention Deck matcher group from `%USERPROFILE%\.codex\hooks.json`, or delete that file if it contains nothing else. Then reopen Codex. Removing the hook does not delete Attention Deck's local inbox history; see `DATA_HANDLING.md` for the separate state-removal steps.

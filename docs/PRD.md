@@ -1,6 +1,6 @@
 # Attention Deck — Product Requirements Document
 
-Status: public alpha; NEEDS ME, lifecycle persistence, recurrence, dismiss, and three-view navigation physically qualified on Stream Deck+; sleep/wake and live provider qualification pending, 2026-08-30
+Status: public alpha; NEEDS ME, lifecycle persistence, recurrence, dismiss, three-view navigation, and the Codex completion hook physically qualified on Stream Deck+; sleep/wake, exact OPEN, and live provider-action qualification pending, 2026-08-30
 
 ## Decision
 
@@ -127,7 +127,7 @@ Default ordering is `APPROVAL > INPUT > FAILED > REVIEW`; within a state, explic
 
 ### P2
 
-- Desktop/CLI completion hook bridge (implemented; physical qualification pending).
+- Desktop/CLI completion hook bridge (implemented and physically qualified on Windows with a disposable CLI turn).
 - Claude Code hooks adapter.
 - OpenClaw adapter and an explicit remote-broker threat model.
 
@@ -164,6 +164,6 @@ Remote exposure, dashboards, metrics graphs, full transcripts, arbitrary quick r
 1. Generic vertical slice (current): protocol/store/broker/CLI, device rendering, dismiss/snooze.
 2. Bounded lifecycle/persistence increment, three device views, installer/profile, safe locator launcher, daily dogfooding.
 3. Codex app-server adapter foundation: thread inventory, exact owned-request correlation, OPEN, and gated request-scoped actions (current).
-4. Codex desktop Stop-hook bridge and live qualification of a disposable completion and approval turn.
+4. Codex Stop-hook bridge and live qualification: disposable completion turn complete; disposable approval turn pending.
 5. Claude Code, then OpenClaw.
 6. Packaging, screenshots/demo, security review, and v0.1 OSS release.
