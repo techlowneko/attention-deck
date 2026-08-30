@@ -106,15 +106,15 @@ function text(value: unknown, field: keyof typeof TEXT_LIMITS): string {
   return normalized;
 }
 
-function timestamp(value: unknown, fallback: Date): string {
-  if (value === undefined) return fallback.toISOString();
+function timestamp(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
   if (typeof value !== "string" || Number.isNaN(Date.parse(value))) {
     throw new Error("occurred_at must be an ISO-8601 timestamp");
   }
   return new Date(value).toISOString();
 }
 
-export function validateEmitItem(value: unknown, now = new Date()): EmitItem {
+export function validateEmitItem(value: unknown, _now = new Date()): EmitItem {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error("event must be a JSON object");
   }
@@ -132,8 +132,9 @@ export function validateEmitItem(value: unknown, now = new Date()): EmitItem {
     state: input.state as AttentionState,
     title: text(input.title, "title"),
     summary: text(input.summary, "summary"),
-    occurred_at: timestamp(input.occurred_at, now),
   };
+  const occurredAt = timestamp(input.occurred_at);
+  if (occurredAt !== undefined) parsed.occurred_at = occurredAt;
   if (input.event_id !== undefined) parsed.event_id = text(input.event_id, "session");
   if (input.session !== undefined) parsed.session = text(input.session, "session");
   if (input.version !== undefined) {

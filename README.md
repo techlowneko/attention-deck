@@ -2,7 +2,7 @@
 
 Attention Deck is a Stream Deck+ inbox for developers running AI coding agents. It shows which task needs you, why it is waiting, and which actions the integration can safely offer.
 
-> **Early alpha:** the generic local event path and physical Stream Deck+ NEEDS ME workflow are working. Bounded lifecycle state, restart-safe local persistence, selectable snooze, local dismiss, recurrence wake, and NEEDS ME / ACTIVE / RECENT navigation are automated-test and device qualified on Windows. Sleep/wake and live Codex-provider qualification remain. Ordinary Codex desktop tasks do not yet publish attention events to the Deck.
+> **Early alpha:** the generic local event path and physical Stream Deck+ NEEDS ME workflow are working. Bounded lifecycle state, restart-safe local persistence, selectable snooze, local dismiss, recurrence wake, NEEDS ME / ACTIVE / RECENT navigation, and the opt-in Codex completion hook are automated-test and device qualified on Windows. Sleep/wake, exact OPEN, and live provider-action qualification remain.
 
 **Stop checking agent windows. Let blocked work come to you.**
 
@@ -39,7 +39,7 @@ Attention Deck is designed to provide four answers from desk distance:
 | Codex app-server initialization and stored-task inventory | Working local integration |
 | Best-effort Codex task deep-link | Implemented; physical qualification still pending |
 | Request-scoped Codex APPROVE/DENY | Implemented and unit tested for adapter-owned requests with explicitly advertised decisions; not yet end-to-end release-qualified |
-| Passive updates from ordinary Codex desktop work | Planned opt-in notify bridge |
+| Passive updates from ordinary Codex work | Opt-in Stop hook implemented, automated-test qualified, and physically qualified on Windows with a disposable CLI turn |
 | Orthogonal lifecycle state, generation/count tracking, restart-safe local state, bounded RECENT history, selectable snooze, and ACTIVE/RECENT views | Automated-test and physical device qualified on Windows; sleep/wake qualification pending |
 | Installer and signed releases | Planned |
 | Claude Code and OpenClaw adapters | Planned |
@@ -95,6 +95,12 @@ npm run attention -- emit --project "Demo" --state INPUT --title "Choose an opti
 
 The development broker listens on `127.0.0.1:17893`. Its bearer token is generated in the current Windows user's local application-data directory and is not stored in this repository.
 
+### Opt in to Codex completion cards
+
+Attention Deck includes a display-only Codex `Stop` hook. When a main Codex turn finishes, the hook posts one `REVIEW` card through the same authenticated generic event API. It hashes native session and turn identifiers, keeps only the final folder name as the project label, and does not copy prompts, transcripts, the assistant message, locators, or approval capabilities.
+
+Build and link the plugin first, then merge [the Windows hook definition](integrations/codex/hooks.windows.json) into `%USERPROFILE%\.codex\hooks.json`. If that file does not exist, copy the example as-is. Codex requires non-managed hooks to be reviewed and trusted; open `/hooks` in Codex after adding it. See [the Codex hook guide](docs/codex-hook.md) for setup, testing, and removal.
+
 ## Architecture
 
 ```text
@@ -115,7 +121,7 @@ Attention Deck uses the documented `codex app-server` protocol rather than termi
 
 On Windows, Codex desktop owns a private stdio app-server connection. A second process can list stored tasks, but it cannot receive or answer approval requests owned by the desktop connection. Attention Deck therefore never creates an actionable approval from a `waitingOnApproval` status hint. Direct actions are enabled only for an exact server request received on the adapter's own connection.
 
-The next provider milestone is an opt-in completion/notify bridge so ordinary Codex desktop work can update the Deck. For desktop-owned approval prompts, opening the exact Codex task remains the safe fallback unless OpenAI provides a supported shared Windows transport.
+Ordinary Codex completion now uses the documented, opt-in `Stop` lifecycle hook. The hook is notification-only and never reconstructs desktop-owned approvals. For desktop-owned approval prompts, opening the exact Codex task remains the safe fallback unless OpenAI provides a supported shared Windows transport.
 
 ## Security model
 
@@ -134,11 +140,10 @@ See [DATA_HANDLING.md](DATA_HANDLING.md) for the local data and privacy model.
 ## Roadmap
 
 1. Finish sleep/wake qualification for the physically tested lifecycle/persistence, recurrence, selectable-snooze, and three-view workflow.
-2. Add the opt-in Codex desktop completion/notify bridge.
-3. Finish exact OPEN qualification.
-4. Run a disposable-repository Codex approval qualification pass.
-5. Add installer/profile tooling, screenshots, and signed releases.
-6. Add Claude Code and OpenClaw adapters behind the same capability model.
+2. Finish exact OPEN qualification.
+3. Run a disposable-repository Codex approval qualification pass.
+4. Add installer/profile tooling, screenshots, and signed releases.
+5. Add Claude Code and OpenClaw adapters behind the same capability model.
 
 ## Contributing
 

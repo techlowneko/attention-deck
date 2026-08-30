@@ -22,3 +22,15 @@ test("plugin build uses an explicit generated-bin cleanup step", async () => {
   const packageJson = JSON.parse(await readFile("package.json", "utf8")) as { scripts?: { build?: string } };
   assert.match(packageJson.scripts?.build ?? "", /clean-plugin-bin\.mjs/);
 });
+
+test("Codex hook example is portable, opt-in, and points at the bundled display-only bridge", async () => {
+  const config = JSON.parse(await readFile("integrations/codex/hooks.windows.json", "utf8")) as {
+    hooks?: { Stop?: Array<{ hooks?: Array<Record<string, unknown>> }> };
+  };
+  const handler = config.hooks?.Stop?.[0]?.hooks?.[0];
+  assert.equal(handler?.type, "command");
+  assert.equal(handler?.async, true);
+  assert.equal(handler?.timeout, 3);
+  assert.match(String(handler?.commandWindows), /%APPDATA%.*codex-stop-hook\.cjs/iu);
+  assert.doesNotMatch(JSON.stringify(config), /C:\\Users\\/iu);
+});

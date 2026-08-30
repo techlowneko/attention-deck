@@ -18,6 +18,35 @@ test("broker rejects unauthenticated mutations and accepts authenticated events"
   assert.equal(broker.store.snapshot().items.length, 1);
 });
 
+test("broker accepts a deterministic retry when the emitter omits occurred_at", async (context) => {
+  const broker = await startBroker({ port: 0, token: "r".repeat(32) });
+  context.after(() => broker.close());
+  const event = {
+    event_id: "codex-stop:retry",
+    source: "codex",
+    project: "Relay",
+    session: "thread-one",
+    state: "REVIEW",
+    title: "Codex turn ready",
+    summary: "Open Codex to review.",
+  };
+  const headers = { authorization: `Bearer ${broker.token}`, "content-type": "application/json" };
+  const first = await fetch(`http://127.0.0.1:${broker.port}/v1/events`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(event),
+  });
+  const retry = await fetch(`http://127.0.0.1:${broker.port}/v1/events`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(event),
+  });
+  assert.equal(first.status, 202);
+  assert.equal(retry.status, 202);
+  assert.equal(broker.store.snapshot().items.length, 1);
+  assert.equal(broker.store.snapshot().items[0]?.occurrence_count, 1);
+});
+
 test("broker action requires the current item version", async (context) => {
   const broker = await startBroker({ port: 0, token: "y".repeat(32) });
   context.after(() => broker.close());

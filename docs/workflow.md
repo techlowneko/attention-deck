@@ -120,8 +120,22 @@ The Codex desktop app runs its own app-server child over private stdio. Windows 
 
 - the adapter may list stored tasks but cannot subscribe to the desktop process's pending server requests;
 - APPROVE/DENY is available only for turns initiated through this adapter connection;
-- ordinary desktop task attention needs a separate opt-in completion/notify bridge;
+- ordinary desktop task completion uses a separate opt-in, display-only `Stop` hook;
 - the plugin never guesses an approval from persisted history or aggregate status.
+
+### Codex completion hook workflow
+
+```text
+Codex main turn reaches Stop
+  -> hook receives bounded JSON on stdin
+  -> require stop_hook_active = false and exact session/turn IDs
+  -> hash native IDs and discard transcript/message/permission fields
+  -> authenticated generic REVIEW emit to 127.0.0.1
+  -> deterministic retry deduplication
+  -> local dismiss or snooze only
+```
+
+The bridge always returns `{}` and fails open if the broker is unavailable. Because it uses the generic event route, it cannot attach a locator or provider decision capability. A Stop hook therefore never makes APPROVE or DENY appear for a desktop-owned turn.
 
 ## Physical test script
 
