@@ -24,6 +24,10 @@ function escapeXml(value: string): string {
   return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }
 
+function svgDataUri(svg: string): string {
+  return `data:image/svg+xml;base64,${Buffer.from(svg, "utf8").toString("base64")}`;
+}
+
 function truncate(value: string, length: number): string {
   return value.length <= length ? value : `${value.slice(0, Math.max(1, length - 1))}…`;
 }
@@ -78,7 +82,7 @@ export function keyCard(item: AttentionItem, selected: boolean, now = new Date()
   const state = item.freshness === "stale" ? "STALE" : (outcome ?? item.state).toUpperCase();
   const count = occurrenceCount(item);
   const age = `${count && count > 1 ? `×${count} · ` : ""}${ageLabel(item, now)}`;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144">
+  return svgDataUri(`<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144">
     <rect width="144" height="144" rx="13" fill="#090c10"/>
     <rect x="${border / 2}" y="${border / 2}" width="${144 - border}" height="${144 - border}" rx="12" fill="none" stroke="${color}" stroke-width="${border}"/>
     <text x="13" y="23" fill="#9aa5b1" font-family="Arial,sans-serif" font-size="13" font-weight="700">${escapeXml(truncate(item.source.toUpperCase(), 12))}</text>
@@ -86,16 +90,16 @@ export function keyCard(item: AttentionItem, selected: boolean, now = new Date()
     <text x="72" y="63" text-anchor="middle" fill="${color}" font-family="Arial,sans-serif" font-size="15" font-weight="800">${escapeXml(`${statusGlyph(item, state)} ${truncate(state, 13)}`)}</text>
     <text x="72" y="94" text-anchor="middle" fill="#ffffff" font-family="Arial,sans-serif" font-size="19" font-weight="700">${escapeXml(truncate(item.project, 12))}</text>
     <text x="72" y="119" text-anchor="middle" fill="#9aa5b1" font-family="Arial,sans-serif" font-size="12">${escapeXml(truncate(item.title, 18))}</text>
-  </svg>`;
+  </svg>`);
 }
 
 export function actionKey(label: string, enabled: boolean, accent = "#d8e0e8", detail?: string): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144">
+  return svgDataUri(`<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144">
     <rect width="144" height="144" rx="13" fill="#090c10"/>
     <rect x="4" y="4" width="136" height="136" rx="11" fill="none" stroke="${enabled ? accent : "#242a31"}" stroke-width="3"/>
     <text x="72" y="${detail ? 68 : 78}" text-anchor="middle" fill="${enabled ? "#f5f7fa" : "#58616b"}" font-family="Arial,sans-serif" font-size="18" font-weight="800">${escapeXml(label)}</text>
     ${detail ? `<text x="72" y="92" text-anchor="middle" fill="${enabled ? accent : "#58616b"}" font-family="Arial,sans-serif" font-size="13" font-weight="700">${escapeXml(detail)}</text>` : ""}
-  </svg>`;
+  </svg>`);
 }
 
 export function idleKey(
