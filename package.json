@@ -23,7 +23,7 @@
     "build": "npm run check --silent && node scripts/clean-plugin-bin.mjs && node esbuild.config.mjs",
     "build:core": "tsc -p tsconfig.core.json",
     "check": "tsc --noEmit",
-    "test": "tsc -p tsconfig.test.json && node --test .test-dist/tests/*.test.js",
+    "test": "tsc -p tsconfig.test.json && node scripts/run-tests.mjs",
     "start": "node dist/plugin.js",
     "broker": "npm run build:core --silent && node dist/dev-broker.js",
     "attention": "npm run build:core --silent && node dist/cli.js",
