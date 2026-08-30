@@ -1,0 +1,45 @@
+{
+  "name": "attention-deck",
+  "version": "0.0.1",
+  "private": true,
+  "description": "A Stream Deck+ attention inbox for developers running AI coding agents.",
+  "author": "Preflight Stack",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/techlowneko/attention-deck.git"
+  },
+  "homepage": "https://github.com/techlowneko/attention-deck#readme",
+  "bugs": "https://github.com/techlowneko/attention-deck/issues",
+  "keywords": [
+    "stream-deck",
+    "stream-deck-plus",
+    "ai-agents",
+    "codex",
+    "developer-tools"
+  ],
+  "type": "module",
+  "scripts": {
+    "build": "npm run check --silent && node scripts/clean-plugin-bin.mjs && node esbuild.config.mjs",
+    "build:core": "tsc -p tsconfig.core.json",
+    "check": "tsc --noEmit",
+    "test": "tsc -p tsconfig.test.json && node --test .test-dist/tests/*.test.js",
+    "start": "node dist/plugin.js",
+    "broker": "npm run build:core --silent && node dist/dev-broker.js",
+    "attention": "npm run build:core --silent && node dist/cli.js",
+    "validate": "streamdeck validate com.preflightstack.attention-deck.sdPlugin",
+    "pack": "npm run build && streamdeck pack --force com.preflightstack.attention-deck.sdPlugin"
+  },
+  "dependencies": {
+    "@elgato/streamdeck": "2.1.2"
+  },
+  "devDependencies": {
+    "@elgato/cli": "1.9.0",
+    "@types/node": "26.4.0",
+    "esbuild": "^0.28.2",
+    "typescript": "7.0.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

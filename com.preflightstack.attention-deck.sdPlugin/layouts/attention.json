@@ -1,0 +1,36 @@
+{
+  "$schema": "https://schemas.elgato.com/streamdeck/plugins/layout.json",
+  "id": "com.preflightstack.attention-deck.layout",
+  "items": [
+    {
+      "key": "eyebrow",
+      "type": "text",
+      "rect": [10, 8, 180, 20],
+      "value": "ATTENTION DECK",
+      "alignment": "left",
+      "color": "#8d99a6",
+      "font": { "size": 13, "weight": 700 },
+      "text-overflow": "ellipsis"
+    },
+    {
+      "key": "primary",
+      "type": "text",
+      "rect": [10, 32, 180, 34],
+      "value": "NOTHING NEEDS YOU",
+      "alignment": "left",
+      "color": "#f3f6f9",
+      "font": { "size": 20, "weight": 800 },
+      "text-overflow": "ellipsis"
+    },
+    {
+      "key": "secondary",
+      "type": "text",
+      "rect": [10, 72, 180, 20],
+      "value": "ALL CLEAR",
+      "alignment": "left",
+      "color": "#58c4dd",
+      "font": { "size": 13, "weight": 700 },
+      "text-overflow": "ellipsis"
+    }
+  ]
+}

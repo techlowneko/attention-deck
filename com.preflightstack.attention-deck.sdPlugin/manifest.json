@@ -1,0 +1,66 @@
+{
+  "$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+  "UUID": "com.preflightstack.attention-deck",
+  "Name": "Attention Deck",
+  "Version": "0.0.1.0",
+  "Author": "Preflight Stack",
+  "Description": "An attention inbox for developers running AI coding agents.",
+  "Category": "Attention Deck",
+  "CategoryIcon": "imgs/plugin/category",
+  "Icon": "imgs/plugin/marketplace",
+  "CodePath": "bin/launcher.cjs",
+  "SDKVersion": 2,
+  "Software": {
+    "MinimumVersion": "7.0"
+  },
+  "OS": [
+    {
+      "Platform": "windows",
+      "MinimumVersion": "10"
+    }
+  ],
+  "Nodejs": {
+    "Version": "20"
+  },
+  "Actions": [
+    {
+      "UUID": "com.preflightstack.attention-deck.key",
+      "Name": "Attention Key",
+      "Tooltip": "Show or act on the attention queue based on key position.",
+      "Icon": "imgs/actions/attention",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/actions/attention"
+        }
+      ],
+      "SupportedInMultiActions": false,
+      "UserTitleEnabled": false
+    },
+    {
+      "UUID": "com.preflightstack.attention-deck.encoder",
+      "Name": "Attention Dial",
+      "Tooltip": "Navigate the attention queue, details, and actions.",
+      "Icon": "imgs/actions/attention",
+      "Controllers": [
+        "Encoder"
+      ],
+      "Encoder": {
+        "layout": "layouts/attention.json",
+        "TriggerDescription": {
+          "Rotate": "Navigate",
+          "Push": "Select"
+        }
+      },
+      "States": [
+        {
+          "Image": "imgs/actions/attention"
+        }
+      ],
+      "SupportedInMultiActions": false,
+      "UserTitleEnabled": false
+    }
+  ]
+}
