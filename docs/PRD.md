@@ -127,7 +127,7 @@ Default ordering is `APPROVAL > INPUT > FAILED > REVIEW`; within a state, explic
 
 ### P2
 
-- Desktop/CLI completion notify bridge.
+- Desktop/CLI completion hook bridge (implemented; physical qualification pending).
 - Claude Code hooks adapter.
 - OpenClaw adapter and an explicit remote-broker threat model.
 
@@ -164,6 +164,6 @@ Remote exposure, dashboards, metrics graphs, full transcripts, arbitrary quick r
 1. Generic vertical slice (current): protocol/store/broker/CLI, device rendering, dismiss/snooze.
 2. Bounded lifecycle/persistence increment, three device views, installer/profile, safe locator launcher, daily dogfooding.
 3. Codex app-server adapter foundation: thread inventory, exact owned-request correlation, OPEN, and gated request-scoped actions (current).
-4. Codex desktop notify bridge and live qualification of a disposable approval turn.
+4. Codex desktop Stop-hook bridge and live qualification of a disposable completion and approval turn.
 5. Claude Code, then OpenClaw.
 6. Packaging, screenshots/demo, security review, and v0.1 OSS release.

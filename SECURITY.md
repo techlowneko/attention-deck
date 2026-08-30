@@ -17,6 +17,7 @@ Include the affected version or commit, reproduction steps, expected impact, and
 - The broker is designed for one user and binds to `127.0.0.1` only.
 - A bearer token is required for snapshots and mutations.
 - Generic events are display-only and cannot declare commands, provider callbacks, approval actions, or arbitrary locators.
+- The opt-in Codex completion hook is a generic emitter, not a trusted provider adapter. It hashes native identifiers, discards transcript and message content, and cannot grant OPEN, APPROVE, or DENY.
 - Provider actions are accepted only from in-process trusted adapters and are bound to exact native request identifiers.
 - Stale, changed, disconnected, or outcome-unknown items fail closed.
 - Attention Deck is not designed for public internet or LAN exposure.

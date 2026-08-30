@@ -13,25 +13,25 @@ The broker may receive and display:
 - local snooze/dismiss treatment and bounded recent outcomes;
 - provider-native thread, turn, item, and request identifiers;
 - bounded Codex reason or command previews after basic credential-pattern redaction.
+- for the opt-in Codex completion hook, a folder-only project label plus hashed session and turn identities; the hook discards the assistant message, prompt, transcript path, model, permission mode, and full working path.
 
 This information can still be sensitive. Task names, paths, commands, and summaries may reveal private project or customer context. Treat the Stream Deck display and authenticated broker snapshot as private workstation surfaces.
 
 ## Storage and retention
 
-- In the checked-in alpha, attention items are held in memory and are lost when the plugin restarts.
 - The lifecycle store writes a restart-safe local snapshot to `%LOCALAPPDATA%\Preflight Stack\Attention Deck\state.json` by default. It contains current item metadata, source/operator/presentation/decision state, generation/count information, snooze expiry, and bounded RECENT outcomes. It is not a transcript archive.
 - In memory, the store is capped at 512 current items, 2,048 delivery-id deduplication records, and 256 RECENT/history records. The state file retains at most the newest 512 delivery-id records and is additionally byte-bounded.
 - State files are limited to 8 MiB. Oversized or malformed JSON is quarantined before a replacement can be written. If the file is unreadable, cannot be quarantined, or uses an unsupported schema, persistence becomes read-only so a new mutation cannot silently overwrite it.
 - Provider action grants, open app-server responders, and retryable APPROVE/DENY operations are never restored from disk. Reconnection and a fresh trusted-adapter snapshot are required before provider mutations are enabled.
-- The random broker token persists in the current Windows user's local application-data directory.
+- The random broker token persists at `%LOCALAPPDATA%\AttentionDeck\auth-token` for the current Windows user.
 - Startup diagnostics are local, size-bounded, and redact common bearer-token, query-secret, and user-profile patterns. Logs are excluded from source control and release packages.
-- Codex task transcripts are not copied into the repository or persisted by Attention Deck.
+- Codex task transcripts and completed assistant messages are not copied into the repository or persisted by the completion hook.
 
 ## Network behavior
 
 - The broker binds to `127.0.0.1` only.
 - Attention Deck does not send telemetry or task content to a service operated by this project.
-- The separately installed Codex CLI may communicate with OpenAI under its own authentication and policies; Attention Deck communicates with its local app-server process.
+- The separately installed Codex app or CLI may communicate with OpenAI under its own authentication and policies; Attention Deck communicates only with a local app-server process and its opt-in local completion hook.
 
 ## Local clients
 

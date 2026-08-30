@@ -36,6 +36,10 @@ Identity and ordering:
 - `sequence` must increase within a producer stream.
 - Producer timestamps are display data. Broker receipt time controls first-seen and freshness.
 
+An emitter may omit `occurred_at`. Validation preserves that omission for delivery fingerprinting, and materialization applies broker receipt time only after deduplication. This keeps deterministic retries idempotent even when a producer has no stable timestamp.
+
+The opt-in Codex Stop hook uses this generic path. It sends a deterministic `REVIEW` event with hashed session/turn identity and a folder-only project label. It cannot attach provider actions or a launch locator.
+
 Limits are enforced for every string and the complete body. Generic events cannot contain commands, callbacks, provider approval actions, or arbitrary custom-scheme locators.
 
 ## Lifecycle projection increment

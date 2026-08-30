@@ -1,0 +1,18 @@
+{
+  "description": "Send completed Codex turns to the local Attention Deck inbox.",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node $HOME/.attention-deck/codex-stop-hook.cjs",
+            "commandWindows": "node \"%APPDATA%\\Elgato\\StreamDeck\\Plugins\\com.preflightstack.attention-deck.sdPlugin\\bin\\codex-stop-hook.cjs\"",
+            "timeout": 3,
+            "async": true
+          }
+        ]
+      }
+    ]
+  }
+}
