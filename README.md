@@ -1,81 +1,71 @@
 # Attention Deck
 
-Attention Deck is a Stream Deck+ inbox for developers running AI coding agents. It shows which task needs you, why it is waiting, and which actions the integration can safely offer.
+Attention Deck turns your Stream Deck+ into a local inbox for AI coding agents. When a task finishes, fails, or needs your attention, it appears on the deck so you can respond without repeatedly checking agent windows.
 
-> **Early alpha:** the generic local event path and physical Stream Deck+ NEEDS ME workflow are working. Bounded lifecycle state, restart-safe local persistence, selectable snooze, local dismiss, recurrence wake, NEEDS ME / ACTIVE / RECENT navigation, and the opt-in Codex completion hook are automated-test and device qualified on Windows. Sleep/wake, exact OPEN, and live provider-action qualification remain.
+> **Early alpha:** the main notification and navigation workflow works and has been tested on a physical Stream Deck+ on Windows. Installation is still developer-oriented, and some Codex actions need more real-world testing before release.
 
-**Stop checking agent windows. Let blocked work come to you.**
+## What it does
 
-## Who it is for
-
-Attention Deck is for developers and technical operators who run several local agent tasks at once and want to keep working without repeatedly scanning Codex, terminals, or dashboards.
-
-It is most useful when:
-
-- agents work unattended for minutes at a time;
-- approvals, questions, failures, and reviews can stall that work;
-- you already use a Stream Deck+ as an always-visible secondary surface;
-- you want local integrations with explicit safety boundaries rather than a remote control service.
-
-If you run one short task at a time, switching back to its window is probably simpler.
-
-## Why use it
-
-Agent sessions can run independently, but they still stop for human decisions. Repeatedly checking every window creates unnecessary context switches; checking too late leaves useful work blocked.
-
-Attention Deck is designed to provide four answers from desk distance:
+Attention Deck helps answer four questions at a glance:
 
 1. Which task needs me?
 2. Why is it waiting?
-3. How long has it waited?
-4. What safe action is available now?
+3. How long has it been waiting?
+4. What can I safely do next?
+
+It is most useful when you run several agent tasks at once and want to keep working while they run in the background.
+
+```text
+Codex or another local tool
+  -> sends an attention update
+  -> Attention Deck organizes it
+  -> the Stream Deck+ shows a card
+  -> you open, snooze, dismiss, approve, or deny it
+```
 
 ## What works today
 
-| Capability | Status |
-| --- | --- |
-| Stream Deck+ NEEDS ME rendering, selection, details, local dismiss, and five-minute snooze | Working development prototype; physically tested on Windows |
-| Authenticated local event API and CLI | Working development prototype |
-| Codex app-server initialization and stored-task inventory | Working local integration |
-| Best-effort Codex task deep-link | Implemented; physical qualification still pending |
-| Request-scoped Codex APPROVE/DENY | Implemented and unit tested for adapter-owned requests with explicitly advertised decisions; not yet end-to-end release-qualified |
-| Passive updates from ordinary Codex work | Opt-in Stop hook implemented, automated-test qualified, and physically qualified on Windows with a disposable CLI turn |
-| Orthogonal lifecycle state, generation/count tracking, restart-safe local state, bounded RECENT history, selectable snooze, and ACTIVE/RECENT views | Automated-test and physical device qualified on Windows; sleep/wake qualification pending |
-| Installer and signed releases | Planned |
-| Claude Code and OpenClaw adapters | Planned |
+The current Windows prototype can:
 
-## How the device works
+- show local task notifications on a Stream Deck+;
+- rank and select the tasks that need you most;
+- show active and recently handled tasks;
+- open supported tasks, snooze them, or dismiss them locally;
+- keep the local inbox after a restart;
+- show a review card when an ordinary Codex turn finishes, using an optional Codex hook; and
+- receive carefully limited approval requests from Codex tasks started through its own connection.
 
-Place **Attention Key** on all eight keys and **Attention Dial** on all four dials.
+Still in progress:
 
-- Top keys 1–4 show the highest-priority items. Pressing a card selects it; selection never mutates work.
-- Bottom keys are OPEN, APPROVE, DENY-or-DISMISS, and SNOOZE.
-- Dial 1 selects items, Dial 2 pages the explanation, Dial 3 selects valid actions and snooze duration, and Dial 4 rotates NEEDS ME / ACTIVE / RECENT; pressing Dial 4 returns home to NEEDS ME.
-- APPROVE and DENY require a 750 ms hold and remain disabled unless a trusted adapter owns the exact live request.
+- testing sleep and wake behavior;
+- fully qualifying exact task opening and live Codex approvals;
+- creating a friendly installer and signed releases; and
+- adding Claude Code and OpenClaw integrations.
 
-### Lifecycle and views
+## How the Stream Deck+ is arranged
 
-The lifecycle increment keeps four concerns separate:
+Add **Attention Key** to all eight keys and **Attention Dial** to all four dials.
 
-- normalized task **state** records working, input, approval, review, done, or failed;
-- **source state** records whether the source still considers that item active or has authoritatively cleared it;
-- **operator state** records whether this user has not seen, seen, or claimed the item;
-- **presentation state** records whether the local card is visible, snoozed, dismissed, or recent;
-- **decision state** tracks whether a request-scoped provider decision is absent, available, sending, accepted, rejected, or of unknown outcome.
+- **Top four keys:** show the highest-priority cards. Press one to select it.
+- **Bottom four keys:** OPEN, APPROVE, DENY or DISMISS, and SNOOZE.
+- **Dial 1:** move between cards.
+- **Dial 2:** read more of the explanation.
+- **Dial 3:** choose an available action or snooze duration.
+- **Dial 4:** switch between NEEDS ME, ACTIVE, and RECENT. Press it to return to NEEDS ME.
 
-A stable item may have multiple generations and repeated occurrences. A newer version wakes a snoozed or locally dismissed item when it again needs attention. An authoritative provider clear is different from local dismiss: clear says the source no longer needs a person, while dismiss only removes the current generation from this user's inbox.
+Selecting or opening a card does not mark the task complete. Approval and denial require a 750 ms hold and only appear when Attention Deck can verify the exact live request.
 
-The increment also adds a restart-safe local snapshot and bounded RECENT history. It does not persist provider approval grants across restart; a trusted adapter must reconnect and re-establish current capabilities before APPROVE or DENY can reappear.
+## Try the development version
 
-## Development quick start
+You will need:
 
-Current requirements:
+- Windows 10 or later;
+- Stream Deck software 7.0 or later;
+- a Stream Deck+;
+- Node.js 20 or later; and
+- Codex CLI with `app-server` support if you want to try the Codex adapter.
 
-- Windows 10 or later
-- Stream Deck software 7.0 or later
-- Stream Deck+
-- Node.js 20 or later
-- Codex CLI with `app-server` support for the optional Codex adapter
+Install the project, run its checks, build it, and link it to Stream Deck:
 
 ```powershell
 npm ci
@@ -87,70 +77,59 @@ npx streamdeck link com.preflightstack.attention-deck.sdPlugin
 npx streamdeck restart com.preflightstack.attention-deck
 ```
 
-Place the twelve actions in a Stream Deck+ profile, then emit a local test item:
+After placing the eight keys and four dials in a Stream Deck+ profile, create a test card:
 
 ```powershell
 npm run attention -- emit --project "Demo" --state INPUT --title "Choose an option" --summary "This is a local Attention Deck test." --session "readme-demo"
 ```
 
-The development broker listens on `127.0.0.1:17893`. Its bearer token is generated in the current Windows user's local application-data directory and is not stored in this repository.
+The development service listens only on `127.0.0.1:17893`. It creates a private authentication token in the current Windows user's local application-data directory; the token is not stored in this repository.
 
-### Opt in to Codex completion cards
+## Get completion cards from Codex
 
-Attention Deck includes a display-only Codex `Stop` hook. When a main Codex turn finishes, the hook posts one `REVIEW` card through the same authenticated generic event API. It hashes native session and turn identifiers, keeps only the final folder name as the project label, and does not copy prompts, transcripts, the assistant message, locators, or approval capabilities.
+Attention Deck includes an optional Codex `Stop` hook. When a main Codex turn finishes, the hook creates a display-only **REVIEW** card.
 
-Build and link the plugin first, then merge [the Windows hook definition](integrations/codex/hooks.windows.json) into `%USERPROFILE%\.codex\hooks.json`. If that file does not exist, copy the example as-is. Codex requires non-managed hooks to be reviewed and trusted; open `/hooks` in Codex after adding it. See [the Codex hook guide](docs/codex-hook.md) for setup, testing, and removal.
+Build and link the plugin first. Then merge [the Windows hook definition](integrations/codex/hooks.windows.json) into `%USERPROFILE%\.codex\hooks.json`. If the file does not exist, you can copy the example as-is. Open `/hooks` in Codex afterward to review and trust the new hook.
 
-## Architecture
+The hook does not copy your prompts, transcript, assistant response, or approval permissions. See the [Codex hook guide](docs/codex-hook.md) for complete setup, testing, and removal instructions.
 
-```text
-generic CLI or trusted provider adapter
-  -> authenticated loopback broker
-  -> bounded, versioned attention queue
-  -> shared Stream Deck+ surface coordinator
-  -> select, inspect, open, snooze, or capability-gated action
-```
+## An important Codex limitation
 
-Generic events are display-only. They cannot supply commands, callbacks, approval capabilities, or arbitrary locators. Provider actions exist only inside trusted adapters and must match the current item version and provider-native request.
+Attention Deck can show completion notifications from normal Codex desktop tasks, but it usually cannot approve requests owned by the Codex desktop app. Those requests belong to a private Codex connection.
 
-See [the protocol](docs/protocol.md), [runtime workflow](docs/workflow.md), [PRD](docs/PRD.md), and [technical research](docs/research.md).
+In that situation, Attention Deck directs you back to Codex instead of guessing. APPROVE and DENY are enabled only when the plugin receives and still owns the exact live request through its own Codex connection.
 
-## Codex integration and limitation
+## How it stays safe
 
-Attention Deck uses the documented `codex app-server` protocol rather than terminal or screen scraping.
+- Communication stays on your computer and requires a private token.
+- Ordinary notification senders cannot add commands, approval buttons, or arbitrary links.
+- Every action is checked again at the moment you press it.
+- Changed, expired, or disconnected requests are locked instead of retried automatically.
+- Snoozing or dismissing a card changes only your local inbox; it does not pretend the agent finished.
 
-On Windows, Codex desktop owns a private stdio app-server connection. A second process can list stored tasks, but it cannot receive or answer approval requests owned by the desktop connection. Attention Deck therefore never creates an actionable approval from a `waitingOnApproval` status hint. Direct actions are enabled only for an exact server request received on the adapter's own connection.
+Read [SECURITY.md](SECURITY.md) for the full trust model and [DATA_HANDLING.md](DATA_HANDLING.md) for details about local data and privacy.
 
-Ordinary Codex completion now uses the documented, opt-in `Stop` lifecycle hook. The hook is notification-only and never reconstructs desktop-owned approvals. For desktop-owned approval prompts, opening the exact Codex task remains the safe fallback unless OpenAI provides a supported shared Windows transport.
+## Technical documentation
 
-## Security model
+The README intentionally keeps the overview simple. Deeper design details live here:
 
-- The broker binds only to `127.0.0.1` and requires a random bearer token.
-- Browser origins and unexpected Host headers are rejected.
-- Request bodies and text fields are bounded.
-- Generic emitters cannot create provider actions or launch targets.
-- Mutations require the exact current item version.
-- Provider actions use one physical attempt ID and one reply reservation.
-- Disconnects revoke provider capabilities; unknown outcomes are never retried automatically.
+- [Runtime workflow](docs/workflow.md)
+- [Event protocol](docs/protocol.md)
+- [Product requirements](docs/PRD.md)
+- [Technical research](docs/research.md)
 
-See [SECURITY.md](SECURITY.md) for reporting and trust boundaries.
-
-See [DATA_HANDLING.md](DATA_HANDLING.md) for the local data and privacy model.
+At a high level, local tools send authenticated updates to a small local service. That service validates, organizes, and saves the inbox. The Stream Deck plugin reads the inbox and displays only the actions that are safe for the selected card.
 
 ## Roadmap
 
-1. Finish sleep/wake qualification for the physically tested lifecycle/persistence, recurrence, selectable-snooze, and three-view workflow.
-2. Finish exact OPEN qualification.
-3. Run a disposable-repository Codex approval qualification pass.
-4. Add installer/profile tooling, screenshots, and signed releases.
-5. Add Claude Code and OpenClaw adapters behind the same capability model.
+1. Finish sleep/wake, exact OPEN, and live Codex approval testing.
+2. Add installer and profile tooling, screenshots, and signed releases.
+3. Add more agent integrations behind the same safety model.
 
-## Contributing
+## Contributing and license
 
-Issues and focused pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before proposing a provider adapter or a change to the action security model.
+Issues and focused pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before proposing a provider integration or changing the action security model.
 
 Attention Deck is available under the [MIT License](LICENSE). See [ACKNOWLEDGMENTS.md](ACKNOWLEDGMENTS.md) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for project influences and bundled dependency notices.
 
-## Project status and independence
-
-Attention Deck is early-stage software and is not affiliated with or endorsed by OpenAI or Elgato. Codex, OpenAI, Elgato, and Stream Deck are trademarks of their respective owners.
+Attention Deck is not affiliated with or endorsed by OpenAI or Elgato. Codex, OpenAI, Elgato, and Stream Deck are trademarks of their respective owners.
