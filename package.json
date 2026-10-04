@@ -31,7 +31,7 @@
     "pack": "npm run build && streamdeck pack --force com.preflightstack.attention-deck.sdPlugin"
   },
   "dependencies": {
-    "@elgato/streamdeck": "2.1.2"
+    "@elgato/streamdeck": "3.0.1"
   },
   "devDependencies": {
     "@elgato/cli": "1.9.0",
